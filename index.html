@@ -65,6 +65,357 @@
 </div>
 
 <script>
+  //import pluralize from 'pluralize';
+  // Constants
+  export const FIELD_TYPES = {
+    STRING: 'String',
+    BOOLEAN: 'Boolean',
+    OBJECT: 'Object',
+    REF: 'Ref',
+  };
+  export const FIELD_NAMES = {
+    ID: 'id',
+    SLUG: 'slug',
+  };
+  const MANUAL_FILL_PLACEHOLDER = '@@@ TO BE FILLED MANUALLY @@@';
+  const REFERENCE_SUFFIX = 'Ref';
+  const REF_FIELD_NAME_SUFFIX = 'Ref';
+  // Helper functions
+  export const capitalize = (s) => {
+    if (!s)
+      return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+  const buildObjectName = (parentPath, objFieldName) => {
+    if (!parentPath) {
+      return objFieldName;
+    }
+    return parentPath + capitalize(objFieldName);
+  };
+  const detectArrayType = (arr) => {
+    if (arr.length === 0) {
+      return { type: FIELD_TYPES.STRING, valid: false };
+    }
+    const firstItem = arr[0];
+    if (firstItem === null || firstItem === undefined) {
+      return { type: FIELD_TYPES.STRING, valid: false };
+    }
+    switch (typeof firstItem) {
+      case 'boolean':
+        return { type: FIELD_TYPES.BOOLEAN, valid: true };
+      case 'string':
+        return { type: FIELD_TYPES.STRING, valid: true };
+      case 'object':
+        if (firstItem !== null && !Array.isArray(firstItem)) {
+          return { type: FIELD_TYPES.OBJECT, valid: true };
+        }
+        return { type: FIELD_TYPES.STRING, valid: false };
+      default:
+        return { type: FIELD_TYPES.STRING, valid: false };
+    }
+  };
+  const mergeObjectConfigs = (existing, newConfig) => {
+    const result = {
+      fields: { ...existing.fields },
+    };
+    for (const [fieldName, fieldConfig] of Object.entries(newConfig.fields)) {
+      if (!(fieldName in result.fields)) {
+        result.fields[fieldName] = fieldConfig;
+      }
+    }
+    return result;
+  };
+  const createGroupConfBuilder = (source, groupName) => ({
+    source,
+    groupName,
+    fields: {},
+    objects: {},
+  });
+  const resolveRefTarget = (builder, fieldName, array) => {
+    let refGroup = fieldName.replace(new RegExp(REF_FIELD_NAME_SUFFIX + '$'), '');
+    if (!array) {
+      // if (pluralize.isSingular(refGroup)) {
+      //     refGroup = pluralize.plural(refGroup);
+      // }
+    }
+    if (!(refGroup in builder.source)) {
+      return MANUAL_FILL_PLACEHOLDER;
+    }
+    return refGroup;
+  };
+  const detectFieldConfig = (builder, fieldName, value) => {
+    const fieldConfig = { type: FIELD_TYPES.STRING };
+    if (fieldName === FIELD_NAMES.ID) {
+      fieldConfig.filter = true;
+    }
+    switch (typeof value) {
+      case 'boolean':
+        fieldConfig.type = FIELD_TYPES.BOOLEAN;
+        break;
+      case 'string':
+        fieldConfig.type = FIELD_TYPES.STRING;
+        break;
+      case 'object':
+        if (value === null) {
+          return { config: fieldConfig, valid: false };
+        }
+        if (Array.isArray(value)) {
+          fieldConfig.array = true;
+          if (value.length === 0) {
+            return { config: fieldConfig, valid: false };
+          }
+          const arrayTypeResult = detectArrayType(value);
+          if (!arrayTypeResult.valid) {
+            return { config: fieldConfig, valid: false };
+          }
+          fieldConfig.type = arrayTypeResult.type;
+          if (arrayTypeResult.type === FIELD_TYPES.OBJECT) {
+            fieldConfig.objName = fieldName;
+          }
+        }
+        else {
+          fieldConfig.type = FIELD_TYPES.OBJECT;
+          fieldConfig.objName = fieldName;
+        }
+        break;
+      default:
+        return { config: fieldConfig, valid: false };
+    }
+    if (fieldName.endsWith(REFERENCE_SUFFIX)) {
+      fieldConfig.type = FIELD_TYPES.REF;
+      fieldConfig.refTo = resolveRefTarget(builder, fieldName, fieldConfig.array || false);
+    }
+    return { config: fieldConfig, valid: true };
+  };
+  const detectGroupFields = (builder, fieldName, value) => {
+    const result = detectFieldConfig(builder, fieldName, value);
+    if (!result.valid) {
+      return;
+    }
+    if (fieldName in builder.fields) {
+      return;
+    }
+    builder.fields[fieldName] = result.config;
+  };
+  const analyzeObjectStructure = (builder, objFieldName, obj, parentPath) => {
+    const objConfig = {
+      fields: {},
+    };
+    for (const [fieldName, value] of Object.entries(obj)) {
+      if (value === null || value === undefined) {
+        continue;
+      }
+      const result = detectFieldConfig(builder, fieldName, value);
+      if (!result.valid) {
+        continue;
+      }
+      const detected = result.config;
+      if (detected.type === FIELD_TYPES.OBJECT) {
+        const nestedObjectParentPath = buildObjectName(parentPath, objFieldName);
+        detected.objName = buildObjectName(nestedObjectParentPath, fieldName);
+      }
+      objConfig.fields[fieldName] = detected;
+    }
+    return objConfig;
+  };
+  const analyzeObjectStructureFromArray = (builder, fieldName, arr, parentPath) => {
+    let accumulated = { fields: {} };
+    for (const item of arr) {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+        continue;
+      }
+      const objStruct = analyzeObjectStructure(builder, fieldName, item, parentPath);
+      accumulated = mergeObjectConfigs(accumulated, objStruct);
+    }
+    return accumulated;
+  };
+  const detectObjectConfig = (builder, fieldName, value, parentPath) => {
+    if (typeof value !== 'object' || value === null) {
+      return { config: { fields: {} }, valid: false };
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return { config: { fields: {} }, valid: false };
+      }
+      if (typeof value[0] !== 'object' || value[0] === null || Array.isArray(value[0])) {
+        return { config: { fields: {} }, valid: false };
+      }
+      return {
+        config: analyzeObjectStructureFromArray(builder, fieldName, value, parentPath),
+        valid: true,
+      };
+    }
+    else {
+      return {
+        config: analyzeObjectStructure(builder, fieldName, value, parentPath),
+        valid: true,
+      };
+    }
+  };
+  const detectGroupObjects = (builder, fieldName, value, parentPath) => {
+    if (value === null || value === undefined) {
+      return;
+    }
+    const result = detectObjectConfig(builder, fieldName, value, parentPath);
+    if (!result.valid || Object.keys(result.config.fields).length === 0) {
+      return;
+    }
+    const fullObjName = buildObjectName(parentPath, fieldName);
+    if (fullObjName in builder.objects) {
+      const existing = builder.objects[fullObjName];
+      builder.objects[fullObjName] = mergeObjectConfigs(existing, result.config);
+    }
+    else {
+      builder.objects[fullObjName] = result.config;
+    }
+    // Continue traversing deeper levels
+    if (typeof value === 'object' && value !== null) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+            for (const [k, vv] of Object.entries(item)) {
+              detectGroupObjects(builder, k, vv, fullObjName);
+            }
+          }
+        }
+      }
+      else {
+        for (const [k, vv] of Object.entries(value)) {
+          detectGroupObjects(builder, k, vv, fullObjName);
+        }
+      }
+    }
+  };
+  const buildGroupConfig = (builder, groupEntries) => {
+    if (groupEntries.length === 0) {
+      return false;
+    }
+    for (const gEntry of groupEntries) {
+      if (Object.keys(gEntry).length === 0) {
+        continue;
+      }
+      for (const [fieldName, value] of Object.entries(gEntry)) {
+        if (value === null || value === undefined) {
+          continue;
+        }
+        detectGroupFields(builder, fieldName, value);
+        detectGroupObjects(builder, fieldName, value, '');
+      }
+    }
+    return true;
+  };
+  // Main function
+  export const generateSchemaFromData = (source) => {
+    const schema = {
+      namespace: MANUAL_FILL_PLACEHOLDER,
+      typePrefix: MANUAL_FILL_PLACEHOLDER,
+      groups: {},
+    };
+    for (const [groupName, groupEntries] of Object.entries(source)) {
+      if (groupEntries.length === 0) {
+        continue;
+      }
+      const builder = createGroupConfBuilder(source, groupName);
+      const success = buildGroupConfig(builder, groupEntries);
+      if (!success) {
+        continue;
+      }
+      const groupConfig = {
+        fields: builder.fields,
+      };
+      if (Object.keys(builder.objects).length > 0) {
+        groupConfig.objects = builder.objects;
+      }
+      schema.groups[groupName] = groupConfig;
+    }
+    return schema;
+  };
+  // JSON serialization function
+  const writeFieldConfigInline = (fieldConfig) => {
+    const parts = [`"type": "${fieldConfig.type}"`];
+    if (fieldConfig.array) {
+      parts.push('"array": true');
+    }
+    if (fieldConfig.filter) {
+      parts.push('"filter": true');
+    }
+    if (fieldConfig.objName) {
+      parts.push(`"objName": "${fieldConfig.objName}"`);
+    }
+    if (fieldConfig.refTo) {
+      parts.push(`"refTo": "${fieldConfig.refTo}"`);
+    }
+    return `{ ${parts.join(', ')} }`;
+  };
+  export const serializeToJson = (cfg) => {
+    const indent = (n) => '  '.repeat(n);
+    const lines = [];
+    lines.push('{');
+    lines.push(`${indent(1)}"namespace": "${cfg.namespace}",`);
+    lines.push(`${indent(1)}"typePrefix": "${cfg.typePrefix}",`);
+    lines.push(`${indent(1)}"groups": {`);
+    const groupNames = Object.keys(cfg.groups).sort();
+    groupNames.forEach((groupName, groupIdx) => {
+      const group = cfg.groups[groupName];
+      if (groupIdx > 0) {
+        lines.push(',');
+      }
+      lines.push(`${indent(2)}"${groupName}": {`);
+      lines.push(`${indent(3)}"fields": {`);
+      const fieldNames = Object.keys(group.fields).sort();
+      if (fieldNames.length > 0) {
+        fieldNames.forEach((fieldName, fieldIdx) => {
+          const fieldConfig = group.fields[fieldName];
+          const comma = fieldIdx < fieldNames.length - 1 ? ',' : '';
+          lines.push(`${indent(4)}"${fieldName}": ${writeFieldConfigInline(fieldConfig)}${comma}`);
+        });
+      }
+      lines.push(`${indent(3)}}`);
+      if (group.objects && Object.keys(group.objects).length > 0) {
+        lines.push(',');
+        lines.push(`${indent(3)}"objects": {`);
+        const objNames = Object.keys(group.objects).sort();
+        objNames.forEach((objName, objIdx) => {
+          const obj = group.objects[objName];
+          if (objIdx > 0) {
+            lines.push(',');
+          }
+          lines.push(`${indent(4)}"${objName}": {`);
+          lines.push(`${indent(5)}"fields": {`);
+          const objFieldNames = Object.keys(obj.fields).sort();
+          if (objFieldNames.length > 0) {
+            objFieldNames.forEach((fieldName, fieldIdx) => {
+              const fieldConfig = obj.fields[fieldName];
+              const comma = fieldIdx < objFieldNames.length - 1 ? ',' : '';
+              lines.push(`${indent(6)}"${fieldName}": ${writeFieldConfigInline(fieldConfig)}${comma}`);
+            });
+          }
+          lines.push(`${indent(5)}}`);
+          lines.push(`${indent(4)}}`);
+        });
+        lines.push(`${indent(3)}}`);
+      }
+      lines.push(`${indent(2)}}`);
+    });
+    if (groupNames.length > 0) {
+      lines.push('');
+    }
+    lines.push(`${indent(1)}}`);
+    lines.push('}');
+    return lines.join('\n');
+  };
+  // Export all constants for external use
+  export const CONSTANTS = {
+    MANUAL_FILL_PLACEHOLDER,
+    REFERENCE_SUFFIX,
+    REF_FIELD_NAME_SUFFIX,
+    FIELD_TYPES,
+    FIELD_NAMES,
+  };
+  //# sourceMappingURL=schema-generator.js.map
+</script>
+
+<script>
   (function () {
     const fileInput = document.getElementById('fileInput');
     const processBtn = document.getElementById('processBtn');
@@ -110,9 +461,10 @@
       const file = fileInput.files[0];
       try {
         const text = await file.text();
-        let data;
+        let data, schema, _output;
         try {
           data = JSON.parse(text);
+          schema = generateSchemaFromData(data);
         } catch (e) {
           showError('Файл не является валидным JSON.\n' + (e && e.message ? e.message : ''));
           return;
@@ -123,9 +475,9 @@
           return;
         }
 
-        const n = Object.keys(data).length;
-        const output = { value: n };
-        const jsonStr = JSON.stringify(output, null, 2);
+        _output = serializeToJson(schema)
+        const jsonStr = JSON.stringify(_output, null, 2);
+
         resultPreview.textContent = jsonStr;
         showSuccess(`Готово: найдено верхнеуровневых полей — ${n}.`);
 
