@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Подсчёт верхнеуровневых полей JSON</title>
+  <style>
+    :root { --radius: 14px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; background: #0f1220; color: #f6f7fb; margin: 0; padding: 32px; }
+    .card { max-width: 740px; margin: 0 auto; background: #171a2b; border: 1px solid #2a2e4a; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,.35); overflow: hidden; }
+    header { padding: 20px 24px; border-bottom: 1px solid #2a2e4a; background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); }
+    header h1 { font-size: 20px; margin: 0 0 6px; }
+    header p { margin: 0; opacity: .8; font-size: 14px; }
+    .content { padding: 22px 24px 26px; display: grid; gap: 18px; }
+    label { font-size: 14px; opacity: .9; }
+    input[type="file"] { width: 100%; padding: 12px; background: #0f1220; color: #dfe3f5; border: 1px dashed #3a3f66; border-radius: 10px; }
+    .actions { display: flex; gap: 12px; align-items: center; }
+    button { padding: 10px 14px; border: 0; border-radius: 12px; background: #5561ff; color: white; font-weight: 600; cursor: pointer; transition: transform .02s ease-in, opacity .2s; }
+    button[disabled] { opacity: .5; cursor: not-allowed; }
+    button:active { transform: translateY(1px); }
+    .muted { font-size: 13px; opacity: .75; }
+    .error { background: #2a1220; border: 1px solid #7a2a3a; color: #ffb6c1; padding: 10px 12px; border-radius: 10px; display: none; white-space: pre-wrap; }
+    .success { background: #13231a; border: 1px solid #2d6b45; color: #c0f3d2; padding: 10px 12px; border-radius: 10px; display: none; }
+    pre { margin: 0; padding: 14px; background: #0b0e1a; border: 1px solid #2a2e4a; border-radius: 10px; overflow: auto; }
+    a.download { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: #1e243f; border: 1px solid #3a3f66; color: #e2e7ff; padding: 8px 12px; border-radius: 10px; }
+    footer { padding: 14px 24px 22px; border-top: 1px solid #2a2e4a; display: flex; align-items: center; justify-content: space-between; }
+    code { background: #0b0e1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #2a2e4a; }
+  </style>
+</head>
+<body>
+<div class="card" role="region" aria-label="JSON tools">
+  <header>
+    <h1>Подсчёт верхнеуровневых полей JSON</h1>
+    <p>Загрузите <strong>.json</strong>-файл, нажмите <em>Process</em> — получите файл <code>result.json</code> вида <code>{"value": n}</code>,
+      где <code>n</code> — количество верхнеуровневых полей объекта.</p>
+  </header>
+
+  <div class="content">
+    <div>
+      <label for="fileInput">Файл JSON</label>
+      <input id="fileInput" type="file" accept="application/json,.json" />
+      <div class="muted" aria-live="polite">Поддерживается только JSON-объект на верхнем уровне (не массив).</div>
+    </div>
+
+    <div class="actions">
+      <button id="processBtn" disabled>Process</button>
+      <button id="resetBtn" class="secondary" type="button" style="background:#2a2e4a">Сброс</button>
+      <a id="downloadLink" class="download" href="#" download="result.json" style="display:none">⬇️ Скачать результат</a>
+    </div>
+
+    <div id="errorBox" class="error" role="alert"></div>
+    <div id="successBox" class="success"></div>
+
+    <div>
+      <label>Превью результата</label>
+      <pre id="resultPreview">—</pre>
+    </div>
+  </div>
+
+  <footer>
+    <span class="muted">Локальная обработка: файл не покидает ваш браузер.</span>
+    <span class="muted">©</span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    const fileInput = document.getElementById('fileInput');
+    const processBtn = document.getElementById('processBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const errorBox = document.getElementById('errorBox');
+    const successBox = document.getElementById('successBox');
+    const resultPreview = document.getElementById('resultPreview');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let currentDownloadUrl = null;
+
+    function clearError() { errorBox.style.display = 'none'; errorBox.textContent = ''; }
+    function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; successBox.style.display = 'none'; }
+    function showSuccess(msg) { successBox.textContent = msg; successBox.style.display = 'block'; errorBox.style.display = 'none'; }
+    function resetUI(full = false) {
+      clearError();
+      if (currentDownloadUrl) { URL.revokeObjectURL(currentDownloadUrl); currentDownloadUrl = null; }
+      downloadLink.style.display = 'none';
+      resultPreview.textContent = '—';
+      successBox.style.display = 'none';
+      if (full) {
+        fileInput.value = '';
+        processBtn.disabled = true;
+      }
+    }
+
+    fileInput.addEventListener('change', () => {
+      resetUI();
+      processBtn.disabled = !fileInput.files || fileInput.files.length === 0;
+    });
+
+    resetBtn.addEventListener('click', () => {
+      resetUI(true);
+    });
+
+    processBtn.addEventListener('click', async () => {
+      clearError();
+      if (!fileInput.files || fileInput.files.length === 0) {
+        showError('Пожалуйста, выберите JSON-файл.');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      try {
+        const text = await file.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          showError('Файл не является валидным JSON.\n' + (e && e.message ? e.message : ''));
+          return;
+        }
+
+        if (data === null || Array.isArray(data) || typeof data !== 'object') {
+          showError('Ожидается JSON-объект на верхнем уровне (например: { "a": 1, "b": 2 }).');
+          return;
+        }
+
+        const n = Object.keys(data).length;
+        const output = { value: n };
+        const jsonStr = JSON.stringify(output, null, 2);
+        resultPreview.textContent = jsonStr;
+        showSuccess(`Готово: найдено верхнеуровневых полей — ${n}.`);
+
+        const blob = new Blob([jsonStr + "\n"], { type: 'application/json' });
+        if (currentDownloadUrl) URL.revokeObjectURL(currentDownloadUrl);
+        currentDownloadUrl = URL.createObjectURL(blob);
+        downloadLink.href = currentDownloadUrl;
+        downloadLink.style.display = 'inline-flex';
+      } catch (err) {
+        showError('Неожиданная ошибка при обработке файла. ' + (err && err.message ? err.message : ''));
+      }
+    });
+  })();
+</script>
+</body>
+</html>
