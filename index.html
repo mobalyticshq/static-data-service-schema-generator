@@ -1,496 +1,944 @@
-<!doctype html>
-<html lang="ru">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Подсчёт верхнеуровневых полей JSON</title>
-  <style>
-    :root { --radius: 14px; }
-    * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; background: #0f1220; color: #f6f7fb; margin: 0; padding: 32px; }
-    .card { max-width: 740px; margin: 0 auto; background: #171a2b; border: 1px solid #2a2e4a; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,.35); overflow: hidden; }
-    header { padding: 20px 24px; border-bottom: 1px solid #2a2e4a; background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); }
-    header h1 { font-size: 20px; margin: 0 0 6px; }
-    header p { margin: 0; opacity: .8; font-size: 14px; }
-    .content { padding: 22px 24px 26px; display: grid; gap: 18px; }
-    label { font-size: 14px; opacity: .9; }
-    input[type="file"] { width: 100%; padding: 12px; background: #0f1220; color: #dfe3f5; border: 1px dashed #3a3f66; border-radius: 10px; }
-    .actions { display: flex; gap: 12px; align-items: center; }
-    button { padding: 10px 14px; border: 0; border-radius: 12px; background: #5561ff; color: white; font-weight: 600; cursor: pointer; transition: transform .02s ease-in, opacity .2s; }
-    button[disabled] { opacity: .5; cursor: not-allowed; }
-    button:active { transform: translateY(1px); }
-    .muted { font-size: 13px; opacity: .75; }
-    .error { background: #2a1220; border: 1px solid #7a2a3a; color: #ffb6c1; padding: 10px 12px; border-radius: 10px; display: none; white-space: pre-wrap; }
-    .success { background: #13231a; border: 1px solid #2d6b45; color: #c0f3d2; padding: 10px 12px; border-radius: 10px; display: none; }
-    pre { margin: 0; padding: 14px; background: #0b0e1a; border: 1px solid #2a2e4a; border-radius: 10px; overflow: auto; }
-    a.download { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: #1e243f; border: 1px solid #3a3f66; color: #e2e7ff; padding: 8px 12px; border-radius: 10px; }
-    footer { padding: 14px 24px 22px; border-top: 1px solid #2a2e4a; display: flex; align-items: center; justify-content: space-between; }
-    code { background: #0b0e1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #2a2e4a; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schema Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pluralize/8.0.0/pluralize.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .upload-section {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #4f46e5;
+            background: #f1f5f9;
+        }
+
+        .ref-config-section {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+
+        .ref-config-section:hover {
+            border-color: #7c3aed;
+            background: #f1f5f9;
+        }
+
+        .ref-config-title {
+            font-size: 1.2rem;
+            color: #1e293b;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .ref-config-description {
+            color: #64748b;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        .upload-area {
+            text-align: center;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+
+        .file-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+        }
+
+        .file-info {
+            margin: 15px 0;
+            font-size: 1rem;
+            color: #64748b;
+        }
+
+        .process-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .process-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+        }
+
+        .process-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .output-section {
+            margin-top: 30px;
+        }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .output-title {
+            font-size: 1.5rem;
+            color: #1e293b;
+            font-weight: 600;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .toggle-display {
+            background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            display: none;
+        }
+
+        .toggle-display:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(139, 92, 246, 0.3);
+        }
+
+        .code-container {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .code-output {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 25px;
+            border: none;
+            outline: none;
+            resize: vertical;
+            min-height: 400px;
+            width: 100%;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .code-display {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 25px;
+            border: none;
+            outline: none;
+            min-height: 400px;
+            width: 100%;
+            white-space: pre;
+            overflow-x: auto;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .json-key { color: #60a5fa !important; }
+        .json-string { color: #34d399 !important; }
+        .json-number { color: #a78bfa !important; }
+        .json-boolean { color: #fbbf24 !important; }
+        .json-null { color: #f87171 !important; }
+        .json-punctuation { color: #94a3b8 !important; }
+
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #dc2626;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .success-message {
+            background: #f0fdf4;
+            color: #16a34a;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #16a34a;
+            margin-top: 15px;
+            display: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .processing {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+    </style>
 </head>
 <body>
-<div class="card" role="region" aria-label="JSON tools">
-  <header>
-    <h1>Подсчёт верхнеуровневых полей JSON</h1>
-    <p>Загрузите <strong>.json</strong>-файл, нажмите <em>Process</em> — получите файл <code>result.json</code> вида <code>{"value": n}</code>,
-      где <code>n</code> — количество верхнеуровневых полей объекта.</p>
-  </header>
+    <div class="container">
+        <div class="header">
+            <h1>Schema Generator</h1>
+            <p>Upload JSON data to generate schema configuration</p>
+        </div>
 
-  <div class="content">
-    <div>
-      <label for="fileInput">Файл JSON</label>
-      <input id="fileInput" type="file" accept="application/json,.json" />
-      <div class="muted" aria-live="polite">Поддерживается только JSON-объект на верхнем уровне (не массив).</div>
+        <div class="content">
+            <div class="upload-section">
+                <div class="upload-area">
+                    <label for="fileInput" class="file-label">
+                        📁 Choose JSON Data File
+                    </label>
+                    <input type="file" id="fileInput" class="file-input" accept=".json">
+                    <div class="file-info" id="fileInfo">No file selected</div>
+                </div>
+            </div>
+
+            <div class="ref-config-section">
+                <h3 class="ref-config-title">Reference Configuration (Optional)</h3>
+                <p class="ref-config-description">
+                    Upload a JSON file to override reference mappings. This will replace "@@@ TO BE FILLED MANUALLY @@@" placeholders with your specified references.
+                </p>
+                <div class="upload-area">
+                    <label for="refConfigInput" class="file-label" style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);">
+                        🔧 Choose Ref-Config File
+                    </label>
+                    <input type="file" id="refConfigInput" class="file-input" accept=".json">
+                    <div class="file-info" id="refConfigInfo">No ref-config file selected</div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <button class="process-btn" id="processBtn" disabled>
+                    🚀 Process Schema
+                </button>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+
+            <div class="output-section">
+                <div class="output-header">
+                    <h2 class="output-title">Generated Schema</h2>
+                    <div>
+                        <button class="toggle-display" id="toggleDisplay">🎨 Styled View</button>
+                        <button class="download-btn" id="downloadBtn">
+                            💾 Download JSON
+                        </button>
+                    </div>
+                </div>
+                <div class="code-container">
+                    <textarea class="code-output" id="outputArea" placeholder="Generated schema will appear here..." readonly></textarea>
+                    <div class="code-display" id="outputDisplay"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="actions">
-      <button id="processBtn" disabled>Process</button>
-      <button id="resetBtn" class="secondary" type="button" style="background:#2a2e4a">Сброс</button>
-      <a id="downloadLink" class="download" href="#" download="result.json" style="display:none">⬇️ Скачать результат</a>
-    </div>
+    <script>
+        // Schema Generator Code (embedded from your file)
+        const FIELD_TYPES = {
+            STRING: 'String',
+            BOOLEAN: 'Boolean',
+            OBJECT: 'Object',
+            REF: 'Ref',
+        };
 
-    <div id="errorBox" class="error" role="alert"></div>
-    <div id="successBox" class="success"></div>
+        const FIELD_NAMES = {
+            ID: 'id',
+            SLUG: 'slug',
+        };
 
-    <div>
-      <label>Превью результата</label>
-      <pre id="resultPreview">—</pre>
-    </div>
-  </div>
+        const MANUAL_FILL_PLACEHOLDER = '@@@ TO BE FILLED MANUALLY @@@';
+        const REFERENCE_SUFFIX = 'Ref';
+        const REF_FIELD_NAME_SUFFIX = 'Ref';
 
-  <footer>
-    <span class="muted">Локальная обработка: файл не покидает ваш браузер.</span>
-    <span class="muted">©</span>
-  </footer>
-</div>
+        const capitalize = (s) => {
+            if (!s) return s;
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        };
 
-<script>
-  //import pluralize from 'pluralize';
-  // Constants
-  export const FIELD_TYPES = {
-    STRING: 'String',
-    BOOLEAN: 'Boolean',
-    OBJECT: 'Object',
-    REF: 'Ref',
-  };
-  export const FIELD_NAMES = {
-    ID: 'id',
-    SLUG: 'slug',
-  };
-  const MANUAL_FILL_PLACEHOLDER = '@@@ TO BE FILLED MANUALLY @@@';
-  const REFERENCE_SUFFIX = 'Ref';
-  const REF_FIELD_NAME_SUFFIX = 'Ref';
-  // Helper functions
-  export const capitalize = (s) => {
-    if (!s)
-      return s;
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  };
-  const buildObjectName = (parentPath, objFieldName) => {
-    if (!parentPath) {
-      return objFieldName;
-    }
-    return parentPath + capitalize(objFieldName);
-  };
-  const detectArrayType = (arr) => {
-    if (arr.length === 0) {
-      return { type: FIELD_TYPES.STRING, valid: false };
-    }
-    const firstItem = arr[0];
-    if (firstItem === null || firstItem === undefined) {
-      return { type: FIELD_TYPES.STRING, valid: false };
-    }
-    switch (typeof firstItem) {
-      case 'boolean':
-        return { type: FIELD_TYPES.BOOLEAN, valid: true };
-      case 'string':
-        return { type: FIELD_TYPES.STRING, valid: true };
-      case 'object':
-        if (firstItem !== null && !Array.isArray(firstItem)) {
-          return { type: FIELD_TYPES.OBJECT, valid: true };
-        }
-        return { type: FIELD_TYPES.STRING, valid: false };
-      default:
-        return { type: FIELD_TYPES.STRING, valid: false };
-    }
-  };
-  const mergeObjectConfigs = (existing, newConfig) => {
-    const result = {
-      fields: { ...existing.fields },
-    };
-    for (const [fieldName, fieldConfig] of Object.entries(newConfig.fields)) {
-      if (!(fieldName in result.fields)) {
-        result.fields[fieldName] = fieldConfig;
-      }
-    }
-    return result;
-  };
-  const createGroupConfBuilder = (source, groupName) => ({
-    source,
-    groupName,
-    fields: {},
-    objects: {},
-  });
-  const resolveRefTarget = (builder, fieldName, array) => {
-    let refGroup = fieldName.replace(new RegExp(REF_FIELD_NAME_SUFFIX + '$'), '');
-    if (!array) {
-      // if (pluralize.isSingular(refGroup)) {
-      //     refGroup = pluralize.plural(refGroup);
-      // }
-    }
-    if (!(refGroup in builder.source)) {
-      return MANUAL_FILL_PLACEHOLDER;
-    }
-    return refGroup;
-  };
-  const detectFieldConfig = (builder, fieldName, value) => {
-    const fieldConfig = { type: FIELD_TYPES.STRING };
-    if (fieldName === FIELD_NAMES.ID) {
-      fieldConfig.filter = true;
-    }
-    switch (typeof value) {
-      case 'boolean':
-        fieldConfig.type = FIELD_TYPES.BOOLEAN;
-        break;
-      case 'string':
-        fieldConfig.type = FIELD_TYPES.STRING;
-        break;
-      case 'object':
-        if (value === null) {
-          return { config: fieldConfig, valid: false };
-        }
-        if (Array.isArray(value)) {
-          fieldConfig.array = true;
-          if (value.length === 0) {
-            return { config: fieldConfig, valid: false };
-          }
-          const arrayTypeResult = detectArrayType(value);
-          if (!arrayTypeResult.valid) {
-            return { config: fieldConfig, valid: false };
-          }
-          fieldConfig.type = arrayTypeResult.type;
-          if (arrayTypeResult.type === FIELD_TYPES.OBJECT) {
-            fieldConfig.objName = fieldName;
-          }
-        }
-        else {
-          fieldConfig.type = FIELD_TYPES.OBJECT;
-          fieldConfig.objName = fieldName;
-        }
-        break;
-      default:
-        return { config: fieldConfig, valid: false };
-    }
-    if (fieldName.endsWith(REFERENCE_SUFFIX)) {
-      fieldConfig.type = FIELD_TYPES.REF;
-      fieldConfig.refTo = resolveRefTarget(builder, fieldName, fieldConfig.array || false);
-    }
-    return { config: fieldConfig, valid: true };
-  };
-  const detectGroupFields = (builder, fieldName, value) => {
-    const result = detectFieldConfig(builder, fieldName, value);
-    if (!result.valid) {
-      return;
-    }
-    if (fieldName in builder.fields) {
-      return;
-    }
-    builder.fields[fieldName] = result.config;
-  };
-  const analyzeObjectStructure = (builder, objFieldName, obj, parentPath) => {
-    const objConfig = {
-      fields: {},
-    };
-    for (const [fieldName, value] of Object.entries(obj)) {
-      if (value === null || value === undefined) {
-        continue;
-      }
-      const result = detectFieldConfig(builder, fieldName, value);
-      if (!result.valid) {
-        continue;
-      }
-      const detected = result.config;
-      if (detected.type === FIELD_TYPES.OBJECT) {
-        const nestedObjectParentPath = buildObjectName(parentPath, objFieldName);
-        detected.objName = buildObjectName(nestedObjectParentPath, fieldName);
-      }
-      objConfig.fields[fieldName] = detected;
-    }
-    return objConfig;
-  };
-  const analyzeObjectStructureFromArray = (builder, fieldName, arr, parentPath) => {
-    let accumulated = { fields: {} };
-    for (const item of arr) {
-      if (typeof item !== 'object' || item === null || Array.isArray(item)) {
-        continue;
-      }
-      const objStruct = analyzeObjectStructure(builder, fieldName, item, parentPath);
-      accumulated = mergeObjectConfigs(accumulated, objStruct);
-    }
-    return accumulated;
-  };
-  const detectObjectConfig = (builder, fieldName, value, parentPath) => {
-    if (typeof value !== 'object' || value === null) {
-      return { config: { fields: {} }, valid: false };
-    }
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        return { config: { fields: {} }, valid: false };
-      }
-      if (typeof value[0] !== 'object' || value[0] === null || Array.isArray(value[0])) {
-        return { config: { fields: {} }, valid: false };
-      }
-      return {
-        config: analyzeObjectStructureFromArray(builder, fieldName, value, parentPath),
-        valid: true,
-      };
-    }
-    else {
-      return {
-        config: analyzeObjectStructure(builder, fieldName, value, parentPath),
-        valid: true,
-      };
-    }
-  };
-  const detectGroupObjects = (builder, fieldName, value, parentPath) => {
-    if (value === null || value === undefined) {
-      return;
-    }
-    const result = detectObjectConfig(builder, fieldName, value, parentPath);
-    if (!result.valid || Object.keys(result.config.fields).length === 0) {
-      return;
-    }
-    const fullObjName = buildObjectName(parentPath, fieldName);
-    if (fullObjName in builder.objects) {
-      const existing = builder.objects[fullObjName];
-      builder.objects[fullObjName] = mergeObjectConfigs(existing, result.config);
-    }
-    else {
-      builder.objects[fullObjName] = result.config;
-    }
-    // Continue traversing deeper levels
-    if (typeof value === 'object' && value !== null) {
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-            for (const [k, vv] of Object.entries(item)) {
-              detectGroupObjects(builder, k, vv, fullObjName);
+        const buildObjectName = (parentPath, objFieldName) => {
+            if (!parentPath) {
+                return objFieldName;
             }
-          }
-        }
-      }
-      else {
-        for (const [k, vv] of Object.entries(value)) {
-          detectGroupObjects(builder, k, vv, fullObjName);
-        }
-      }
-    }
-  };
-  const buildGroupConfig = (builder, groupEntries) => {
-    if (groupEntries.length === 0) {
-      return false;
-    }
-    for (const gEntry of groupEntries) {
-      if (Object.keys(gEntry).length === 0) {
-        continue;
-      }
-      for (const [fieldName, value] of Object.entries(gEntry)) {
-        if (value === null || value === undefined) {
-          continue;
-        }
-        detectGroupFields(builder, fieldName, value);
-        detectGroupObjects(builder, fieldName, value, '');
-      }
-    }
-    return true;
-  };
-  // Main function
-  export const generateSchemaFromData = (source) => {
-    const schema = {
-      namespace: MANUAL_FILL_PLACEHOLDER,
-      typePrefix: MANUAL_FILL_PLACEHOLDER,
-      groups: {},
-    };
-    for (const [groupName, groupEntries] of Object.entries(source)) {
-      if (groupEntries.length === 0) {
-        continue;
-      }
-      const builder = createGroupConfBuilder(source, groupName);
-      const success = buildGroupConfig(builder, groupEntries);
-      if (!success) {
-        continue;
-      }
-      const groupConfig = {
-        fields: builder.fields,
-      };
-      if (Object.keys(builder.objects).length > 0) {
-        groupConfig.objects = builder.objects;
-      }
-      schema.groups[groupName] = groupConfig;
-    }
-    return schema;
-  };
-  // JSON serialization function
-  const writeFieldConfigInline = (fieldConfig) => {
-    const parts = [`"type": "${fieldConfig.type}"`];
-    if (fieldConfig.array) {
-      parts.push('"array": true');
-    }
-    if (fieldConfig.filter) {
-      parts.push('"filter": true');
-    }
-    if (fieldConfig.objName) {
-      parts.push(`"objName": "${fieldConfig.objName}"`);
-    }
-    if (fieldConfig.refTo) {
-      parts.push(`"refTo": "${fieldConfig.refTo}"`);
-    }
-    return `{ ${parts.join(', ')} }`;
-  };
-  export const serializeToJson = (cfg) => {
-    const indent = (n) => '  '.repeat(n);
-    const lines = [];
-    lines.push('{');
-    lines.push(`${indent(1)}"namespace": "${cfg.namespace}",`);
-    lines.push(`${indent(1)}"typePrefix": "${cfg.typePrefix}",`);
-    lines.push(`${indent(1)}"groups": {`);
-    const groupNames = Object.keys(cfg.groups).sort();
-    groupNames.forEach((groupName, groupIdx) => {
-      const group = cfg.groups[groupName];
-      if (groupIdx > 0) {
-        lines.push(',');
-      }
-      lines.push(`${indent(2)}"${groupName}": {`);
-      lines.push(`${indent(3)}"fields": {`);
-      const fieldNames = Object.keys(group.fields).sort();
-      if (fieldNames.length > 0) {
-        fieldNames.forEach((fieldName, fieldIdx) => {
-          const fieldConfig = group.fields[fieldName];
-          const comma = fieldIdx < fieldNames.length - 1 ? ',' : '';
-          lines.push(`${indent(4)}"${fieldName}": ${writeFieldConfigInline(fieldConfig)}${comma}`);
+            return parentPath + capitalize(objFieldName);
+        };
+
+        const detectArrayType = (arr) => {
+            if (arr.length === 0) {
+                return { type: FIELD_TYPES.STRING, valid: false };
+            }
+            const firstItem = arr[0];
+            if (firstItem === null || firstItem === undefined) {
+                return { type: FIELD_TYPES.STRING, valid: false };
+            }
+            switch (typeof firstItem) {
+                case 'boolean':
+                    return { type: FIELD_TYPES.BOOLEAN, valid: true };
+                case 'string':
+                    return { type: FIELD_TYPES.STRING, valid: true };
+                case 'object':
+                    if (firstItem !== null && !Array.isArray(firstItem)) {
+                        return { type: FIELD_TYPES.OBJECT, valid: true };
+                    }
+                    return { type: FIELD_TYPES.STRING, valid: false };
+                default:
+                    return { type: FIELD_TYPES.STRING, valid: false };
+            }
+        };
+
+        const mergeObjectConfigs = (existing, newConfig) => {
+            const result = {
+                fields: { ...existing.fields },
+            };
+            for (const [fieldName, fieldConfig] of Object.entries(newConfig.fields)) {
+                if (!(fieldName in result.fields)) {
+                    result.fields[fieldName] = fieldConfig;
+                }
+            }
+            return result;
+        };
+
+        const createGroupConfBuilder = (source, groupName) => ({
+            source,
+            groupName,
+            fields: {},
+            objects: {},
         });
-      }
-      lines.push(`${indent(3)}}`);
-      if (group.objects && Object.keys(group.objects).length > 0) {
-        lines.push(',');
-        lines.push(`${indent(3)}"objects": {`);
-        const objNames = Object.keys(group.objects).sort();
-        objNames.forEach((objName, objIdx) => {
-          const obj = group.objects[objName];
-          if (objIdx > 0) {
-            lines.push(',');
-          }
-          lines.push(`${indent(4)}"${objName}": {`);
-          lines.push(`${indent(5)}"fields": {`);
-          const objFieldNames = Object.keys(obj.fields).sort();
-          if (objFieldNames.length > 0) {
-            objFieldNames.forEach((fieldName, fieldIdx) => {
-              const fieldConfig = obj.fields[fieldName];
-              const comma = fieldIdx < objFieldNames.length - 1 ? ',' : '';
-              lines.push(`${indent(6)}"${fieldName}": ${writeFieldConfigInline(fieldConfig)}${comma}`);
+
+        const resolveRefTarget = (builder, fieldName, array) => {
+            let refGroup = fieldName.replace(new RegExp(REF_FIELD_NAME_SUFFIX + '$'), '');
+            if (!array) {
+                if (pluralize.isSingular(refGroup)) {
+                    refGroup = pluralize.plural(refGroup);
+                }
+            }
+            if (!(refGroup in builder.source)) {
+                return MANUAL_FILL_PLACEHOLDER;
+            }
+            return refGroup;
+        };
+
+        const detectFieldConfig = (builder, fieldName, value) => {
+            const fieldConfig = { type: FIELD_TYPES.STRING };
+            if (fieldName === FIELD_NAMES.ID) {
+                fieldConfig.filter = true;
+            }
+            switch (typeof value) {
+                case 'boolean':
+                    fieldConfig.type = FIELD_TYPES.BOOLEAN;
+                    break;
+                case 'string':
+                    fieldConfig.type = FIELD_TYPES.STRING;
+                    break;
+                case 'object':
+                    if (value === null) {
+                        return { config: fieldConfig, valid: false };
+                    }
+                    if (Array.isArray(value)) {
+                        fieldConfig.array = true;
+                        if (value.length === 0) {
+                            return { config: fieldConfig, valid: false };
+                        }
+                        const arrayTypeResult = detectArrayType(value);
+                        if (!arrayTypeResult.valid) {
+                            return { config: fieldConfig, valid: false };
+                        }
+                        fieldConfig.type = arrayTypeResult.type;
+                        if (arrayTypeResult.type === FIELD_TYPES.OBJECT) {
+                            fieldConfig.objName = fieldName;
+                        }
+                    }
+                    else {
+                        fieldConfig.type = FIELD_TYPES.OBJECT;
+                        fieldConfig.objName = fieldName;
+                    }
+                    break;
+                default:
+                    return { config: fieldConfig, valid: false };
+            }
+            if (fieldName.endsWith(REFERENCE_SUFFIX)) {
+                fieldConfig.type = FIELD_TYPES.REF;
+                fieldConfig.refTo = resolveRefTarget(builder, fieldName, fieldConfig.array || false);
+            }
+            return { config: fieldConfig, valid: true };
+        };
+
+        const detectGroupFields = (builder, fieldName, value) => {
+            const result = detectFieldConfig(builder, fieldName, value);
+            if (!result.valid) {
+                return;
+            }
+            if (fieldName in builder.fields) {
+                return;
+            }
+            builder.fields[fieldName] = result.config;
+        };
+
+        const analyzeObjectStructure = (builder, objFieldName, obj, parentPath) => {
+            const objConfig = {
+                fields: {},
+            };
+            for (const [fieldName, value] of Object.entries(obj)) {
+                if (value === null || value === undefined) {
+                    continue;
+                }
+                const result = detectFieldConfig(builder, fieldName, value);
+                if (!result.valid) {
+                    continue;
+                }
+                const detected = result.config;
+                if (detected.type === FIELD_TYPES.OBJECT) {
+                    const nestedObjectParentPath = buildObjectName(parentPath, objFieldName);
+                    detected.objName = buildObjectName(nestedObjectParentPath, fieldName);
+                }
+                objConfig.fields[fieldName] = detected;
+            }
+            return objConfig;
+        };
+
+        const analyzeObjectStructureFromArray = (builder, fieldName, arr, parentPath) => {
+            let accumulated = { fields: {} };
+            for (const item of arr) {
+                if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+                    continue;
+                }
+                const objStruct = analyzeObjectStructure(builder, fieldName, item, parentPath);
+                accumulated = mergeObjectConfigs(accumulated, objStruct);
+            }
+            return accumulated;
+        };
+
+        const detectObjectConfig = (builder, fieldName, value, parentPath) => {
+            if (typeof value !== 'object' || value === null) {
+                return { config: { fields: {} }, valid: false };
+            }
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return { config: { fields: {} }, valid: false };
+                }
+                if (typeof value[0] !== 'object' || value[0] === null || Array.isArray(value[0])) {
+                    return { config: { fields: {} }, valid: false };
+                }
+                return {
+                    config: analyzeObjectStructureFromArray(builder, fieldName, value, parentPath),
+                    valid: true,
+                };
+            }
+            else {
+                return {
+                    config: analyzeObjectStructure(builder, fieldName, value, parentPath),
+                    valid: true,
+                };
+            }
+        };
+
+        const detectGroupObjects = (builder, fieldName, value, parentPath) => {
+            if (value === null || value === undefined) {
+                return;
+            }
+            const result = detectObjectConfig(builder, fieldName, value, parentPath);
+            if (!result.valid || Object.keys(result.config.fields).length === 0) {
+                return;
+            }
+            const fullObjName = buildObjectName(parentPath, fieldName);
+            if (fullObjName in builder.objects) {
+                const existing = builder.objects[fullObjName];
+                builder.objects[fullObjName] = mergeObjectConfigs(existing, result.config);
+            }
+            else {
+                builder.objects[fullObjName] = result.config;
+            }
+            
+            if (typeof value === 'object' && value !== null) {
+                if (Array.isArray(value)) {
+                    for (const item of value) {
+                        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                            for (const [k, vv] of Object.entries(item)) {
+                                detectGroupObjects(builder, k, vv, fullObjName);
+                            }
+                        }
+                    }
+                }
+                else {
+                    for (const [k, vv] of Object.entries(value)) {
+                        detectGroupObjects(builder, k, vv, fullObjName);
+                    }
+                }
+            }
+        };
+
+        const buildGroupConfig = (builder, groupEntries) => {
+            if (groupEntries.length === 0) {
+                return false;
+            }
+            for (const gEntry of groupEntries) {
+                if (Object.keys(gEntry).length === 0) {
+                    continue;
+                }
+                for (const [fieldName, value] of Object.entries(gEntry)) {
+                    if (value === null || value === undefined) {
+                        continue;
+                    }
+                    detectGroupFields(builder, fieldName, value);
+                    detectGroupObjects(builder, fieldName, value, '');
+                }
+            }
+            return true;
+        };
+
+        const generateSchemaFromData = (source) => {
+            const schema = {
+                namespace: MANUAL_FILL_PLACEHOLDER,
+                typePrefix: MANUAL_FILL_PLACEHOLDER,
+                groups: {},
+            };
+            for (const [groupName, groupEntries] of Object.entries(source)) {
+                if (groupEntries.length === 0) {
+                    continue;
+                }
+                const builder = createGroupConfBuilder(source, groupName);
+                const success = buildGroupConfig(builder, groupEntries);
+                if (!success) {
+                    continue;
+                }
+                const groupConfig = {
+                    fields: builder.fields,
+                };
+                if (Object.keys(builder.objects).length > 0) {
+                    groupConfig.objects = builder.objects;
+                }
+                schema.groups[groupName] = groupConfig;
+            }
+            return schema;
+        };
+
+        const writeFieldConfigInline = (fieldConfig) => {
+            const parts = [`"type": "${fieldConfig.type}"`];
+            if (fieldConfig.array) {
+                parts.push('"array": true');
+            }
+            if (fieldConfig.filter) {
+                parts.push('"filter": true');
+            }
+            if (fieldConfig.objName) {
+                parts.push(`"objName": "${fieldConfig.objName}"`);
+            }
+            if (fieldConfig.refTo) {
+                parts.push(`"refTo": "${fieldConfig.refTo}"`);
+            }
+            return `{ ${parts.join(', ')} }`;
+        };
+
+        const serializeToJson = (cfg) => {
+            const indent = (n) => '  '.repeat(n);
+            const lines = [];
+            lines.push('{');
+            lines.push(`${indent(1)}"namespace": "${cfg.namespace}",`);
+            lines.push(`${indent(1)}"typePrefix": "${cfg.typePrefix}",`);
+            lines.push(`${indent(1)}"groups": {`);
+            const groupNames = Object.keys(cfg.groups).sort();
+            groupNames.forEach((groupName, groupIdx) => {
+                const group = cfg.groups[groupName];
+                if (groupIdx > 0) {
+                    lines.push(',');
+                }
+                lines.push(`${indent(2)}"${groupName}": {`);
+                lines.push(`${indent(3)}"fields": {`);
+                const fieldNames = Object.keys(group.fields).sort();
+                if (fieldNames.length > 0) {
+                    fieldNames.forEach((fieldName, fieldIdx) => {
+                        const fieldConfig = group.fields[fieldName];
+                        const comma = fieldIdx < fieldNames.length - 1 ? ',' : '';
+                        lines.push(`${indent(4)}"${fieldName}": ${writeFieldConfigInline(fieldConfig)}${comma}`);
+                    });
+                }
+                lines.push(`${indent(3)}}`);
+                if (group.objects && Object.keys(group.objects).length > 0) {
+                    lines.push(',');
+                    lines.push(`${indent(3)}"objects": {`);
+                    const objNames = Object.keys(group.objects).sort();
+                    objNames.forEach((objName, objIdx) => {
+                        const obj = group.objects[objName];
+                        if (objIdx > 0) {
+                            lines.push(',');
+                        }
+                        lines.push(`${indent(4)}"${objName}": {`);
+                        lines.push(`${indent(5)}"fields": {`);
+                        const objFieldNames = Object.keys(obj.fields).sort();
+                        if (objFieldNames.length > 0) {
+                            objFieldNames.forEach((fieldName, fieldIdx) => {
+                                const fieldConfig = obj.fields[fieldName];
+                                const comma = fieldIdx < objFieldNames.length - 1 ? ',' : '';
+                                lines.push(`${indent(6)}"${fieldName}": ${writeFieldConfigInline(fieldConfig)}${comma}`);
+                            });
+                        }
+                        lines.push(`${indent(5)}}`);
+                        lines.push(`${indent(4)}}`);
+                    });
+                    lines.push(`${indent(3)}}`);
+                }
+                lines.push(`${indent(2)}}`);
             });
-          }
-          lines.push(`${indent(5)}}`);
-          lines.push(`${indent(4)}}`);
+            if (groupNames.length > 0) {
+                lines.push('');
+            }
+            lines.push(`${indent(1)}}`);
+            lines.push('}');
+            return lines.join('\n');
+        };
+
+        // Function to apply ref-config mappings
+        const applyRefConfig = (schema, refConfig) => {
+            if (!refConfig || !refConfig.refs) return schema;
+
+            const refMap = {};
+            refConfig.refs.forEach(ref => {
+                refMap[ref.from] = ref.to;
+            });
+
+            // Create a deep copy of the schema
+            const result = JSON.parse(JSON.stringify(schema));
+
+            // Iterate through groups
+            Object.keys(result.groups).forEach(groupName => {
+                const group = result.groups[groupName];
+                
+                // Check fields in the group
+                if (group.fields) {
+                    Object.keys(group.fields).forEach(fieldName => {
+                        const field = group.fields[fieldName];
+                        const fullPath = `${groupName}.${fieldName}`;
+                        
+                        if (field.type === 'Ref' && field.refTo === MANUAL_FILL_PLACEHOLDER) {
+                            if (refMap[fullPath]) {
+                                field.refTo = refMap[fullPath];
+                            }
+                        }
+                    });
+                }
+                
+                // Check fields in nested objects
+                if (group.objects) {
+                    Object.keys(group.objects).forEach(objName => {
+                        const obj = group.objects[objName];
+                        if (obj.fields) {
+                            Object.keys(obj.fields).forEach(fieldName => {
+                                const field = obj.fields[fieldName];
+                                // For nested objects, we need to construct the path differently
+                                // The path should be groupName.fieldName for the original data structure
+                                const fullPath = `${groupName}.${fieldName}`;
+                                
+                                if (field.type === 'Ref' && field.refTo === MANUAL_FILL_PLACEHOLDER) {
+                                    if (refMap[fullPath]) {
+                                        field.refTo = refMap[fullPath];
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            return result;
+        };
+
+        // App Logic
+        let processedSchema = '';
+        let uploadedFileName = '';
+        let refConfigData = null;
+
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const refConfigInput = document.getElementById('refConfigInput');
+        const refConfigInfo = document.getElementById('refConfigInfo');
+        const processBtn = document.getElementById('processBtn');
+        const outputArea = document.getElementById('outputArea');
+        const outputDisplay = document.getElementById('outputDisplay');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const toggleDisplay = document.getElementById('toggleDisplay');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        let isStyledView = false;
+
+        const hideMessages = () => {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        };
+
+        const showError = (message) => {
+            hideMessages();
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        };
+
+        const showSuccess = (message) => {
+            hideMessages();
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+        };
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                    showError('Please select a valid JSON file');
+                    processBtn.disabled = true;
+                    fileInfo.textContent = 'No file selected';
+                    return;
+                }
+                
+                uploadedFileName = file.name;
+                fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                processBtn.disabled = false;
+                hideMessages();
+            } else {
+                fileInfo.textContent = 'No file selected';
+                processBtn.disabled = true;
+                hideMessages();
+            }
         });
-        lines.push(`${indent(3)}}`);
-      }
-      lines.push(`${indent(2)}}`);
-    });
-    if (groupNames.length > 0) {
-      lines.push('');
-    }
-    lines.push(`${indent(1)}}`);
-    lines.push('}');
-    return lines.join('\n');
-  };
-  // Export all constants for external use
-  export const CONSTANTS = {
-    MANUAL_FILL_PLACEHOLDER,
-    REFERENCE_SUFFIX,
-    REF_FIELD_NAME_SUFFIX,
-    FIELD_TYPES,
-    FIELD_NAMES,
-  };
-  //# sourceMappingURL=schema-generator.js.map
-</script>
 
-<script>
-  (function () {
-    const fileInput = document.getElementById('fileInput');
-    const processBtn = document.getElementById('processBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const errorBox = document.getElementById('errorBox');
-    const successBox = document.getElementById('successBox');
-    const resultPreview = document.getElementById('resultPreview');
-    const downloadLink = document.getElementById('downloadLink');
+        refConfigInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                    showError('Please select a valid JSON file for ref-config');
+                    refConfigInfo.textContent = 'No ref-config file selected';
+                    refConfigData = null;
+                    return;
+                }
+                
+                refConfigInfo.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                hideMessages();
 
-    let currentDownloadUrl = null;
+                // Load ref config file
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        refConfigData = JSON.parse(e.target.result);
+                        if (!refConfigData.refs || !Array.isArray(refConfigData.refs)) {
+                            throw new Error('Ref-config must contain "refs" array');
+                        }
+                        showSuccess('Ref-config loaded successfully!');
+                    } catch (error) {
+                        showError(`Error loading ref-config: ${error.message}`);
+                        refConfigData = null;
+                        refConfigInfo.textContent = 'No ref-config file selected';
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                refConfigInfo.textContent = 'No ref-config file selected';
+                refConfigData = null;
+            }
+        });
 
-    function clearError() { errorBox.style.display = 'none'; errorBox.textContent = ''; }
-    function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; successBox.style.display = 'none'; }
-    function showSuccess(msg) { successBox.textContent = msg; successBox.style.display = 'block'; errorBox.style.display = 'none'; }
-    function resetUI(full = false) {
-      clearError();
-      if (currentDownloadUrl) { URL.revokeObjectURL(currentDownloadUrl); currentDownloadUrl = null; }
-      downloadLink.style.display = 'none';
-      resultPreview.textContent = '—';
-      successBox.style.display = 'none';
-      if (full) {
-        fileInput.value = '';
-        processBtn.disabled = true;
-      }
-    }
+        processBtn.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                showError('Please select a file first');
+                return;
+            }
 
-    fileInput.addEventListener('change', () => {
-      resetUI();
-      processBtn.disabled = !fileInput.files || fileInput.files.length === 0;
-    });
+            processBtn.classList.add('processing');
+            processBtn.textContent = '⏳ Processing...';
+            processBtn.disabled = true;
+            hideMessages();
 
-    resetBtn.addEventListener('click', () => {
-      resetUI(true);
-    });
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    
+                    // Generate schema
+                    let schema = generateSchemaFromData(jsonData);
+                    
+                    // Apply ref-config if available
+                    if (refConfigData) {
+                        schema = applyRefConfig(schema, refConfigData);
+                    }
+                    
+                    processedSchema = serializeToJson(schema);
+                    
+                    // Display result
+                    outputArea.value = processedSchema;
+                    outputDisplay.innerHTML = syntaxHighlight(processedSchema);
+                    downloadBtn.style.display = 'inline-block';
+                    toggleDisplay.style.display = 'inline-block';
+                    
+                    showSuccess(`Schema generated successfully!${refConfigData ? ' Ref-config applied.' : ''}`);
+                } catch (error) {
+                    showError(`Error processing file: ${error.message}`);
+                    outputArea.value = '';
+                    outputDisplay.innerHTML = '';
+                    downloadBtn.style.display = 'none';
+                    toggleDisplay.style.display = 'none';
+                } finally {
+                    processBtn.classList.remove('processing');
+                    processBtn.textContent = '🚀 Process Schema';
+                    processBtn.disabled = false;
+                }
+            };
 
-    processBtn.addEventListener('click', async () => {
-      clearError();
-      if (!fileInput.files || fileInput.files.length === 0) {
-        showError('Пожалуйста, выберите JSON-файл.');
-        return;
-      }
+            reader.onerror = () => {
+                showError('Error reading file');
+                processBtn.classList.remove('processing');
+                processBtn.textContent = '🚀 Process Schema';
+                processBtn.disabled = false;
+            };
 
-      const file = fileInput.files[0];
-      try {
-        const text = await file.text();
-        let data, schema, _output;
-        try {
-          data = JSON.parse(text);
-          schema = generateSchemaFromData(data);
-        } catch (e) {
-          showError('Файл не является валидным JSON.\n' + (e && e.message ? e.message : ''));
-          return;
-        }
+            reader.readAsText(file);
+        });
 
-        if (data === null || Array.isArray(data) || typeof data !== 'object') {
-          showError('Ожидается JSON-объект на верхнем уровне (например: { "a": 1, "b": 2 }).');
-          return;
-        }
+        downloadBtn.addEventListener('click', () => {
+            if (!processedSchema) {
+                showError('No schema to download');
+                return;
+            }
 
-        _output = serializeToJson(schema)
-        const jsonStr = JSON.stringify(_output, null, 2);
+            const blob = new Blob([processedSchema], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = uploadedFileName.replace('.json', '_schema.json');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showSuccess('Schema downloaded successfully!');
+        });
 
-        resultPreview.textContent = jsonStr;
-        showSuccess(`Готово: найдено верхнеуровневых полей — ${n}.`);
-
-        const blob = new Blob([jsonStr + "\n"], { type: 'application/json' });
-        if (currentDownloadUrl) URL.revokeObjectURL(currentDownloadUrl);
-        currentDownloadUrl = URL.createObjectURL(blob);
-        downloadLink.href = currentDownloadUrl;
-        downloadLink.style.display = 'inline-flex';
-      } catch (err) {
-        showError('Неожиданная ошибка при обработке файла. ' + (err && err.message ? err.message : ''));
-      }
-    });
-  })();
-</script>
+        // Enhanced syntax highlighting for the output
+        const syntaxHighlight = (json) => {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            
+            // Escape HTML
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            // Apply syntax highlighting
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[\[\]{}(),:])/g, function (match) {
+                let className = '';
+                
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        className = 'json-key'; // Property keys
+                    } else {
+                        className = 'json-string'; // String values
+                    }
+                } else if (/true|false/.test(match)) {
+                    className = 'json-boolean'; // Boolean values
+                } else if (/null/.test(match)) {
+                    className = 'json-null'; // Null values
+                } else if (/^-?\d/.test(match)) {
+                    className = 'json-number'; // Numeric values
+                } else {
+                    className = 'json-punctuation'; // Brackets, braces, commas, colons
+                }
+                
+                return `<span class="${className}">${match}</span>`;
+            });
+        };
+    </script>
 </body>
 </html>
