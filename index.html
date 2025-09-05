@@ -176,45 +176,11 @@
             box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
         }
 
-        .toggle-display {
-            background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-right: 10px;
-            display: none;
-        }
-
-        .toggle-display:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 15px rgba(139, 92, 246, 0.3);
-        }
-
         .code-container {
             position: relative;
             border-radius: 10px;
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-
-        .code-output {
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 14px;
-            line-height: 1.6;
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 25px;
-            border: none;
-            outline: none;
-            resize: vertical;
-            min-height: 400px;
-            width: 100%;
-            white-space: pre;
-            overflow-x: auto;
         }
 
         .code-display {
@@ -224,14 +190,11 @@
             background: #1e293b;
             color: #e2e8f0;
             padding: 25px;
-            border: none;
-            outline: none;
             min-height: 400px;
             width: 100%;
             white-space: pre;
             overflow-x: auto;
             border-radius: 10px;
-            display: none;
         }
 
         .json-key { color: #60a5fa !important; }
@@ -259,6 +222,11 @@
             border-left: 4px solid #16a34a;
             margin-top: 15px;
             display: none;
+        }
+
+        .placeholder {
+            color: #64748b;
+            font-style: italic;
         }
 
         @keyframes pulse {
@@ -315,16 +283,14 @@
             <div class="output-section">
                 <div class="output-header">
                     <h2 class="output-title">Generated Schema</h2>
-                    <div>
-                        <button class="toggle-display" id="toggleDisplay">🎨 Styled View</button>
-                        <button class="download-btn" id="downloadBtn">
-                            💾 Download JSON
-                        </button>
-                    </div>
+                    <button class="download-btn" id="downloadBtn">
+                        💾 Download JSON
+                    </button>
                 </div>
                 <div class="code-container">
-                    <textarea class="code-output" id="outputArea" placeholder="Generated schema will appear here..." readonly></textarea>
-                    <div class="code-display" id="outputDisplay"></div>
+                    <div class="code-display" id="outputDisplay">
+                        <span class="placeholder">Generated schema will appear here...</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -739,6 +705,39 @@
             return result;
         };
 
+        // Enhanced syntax highlighting for the output
+        const syntaxHighlight = (json) => {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            
+            // Escape HTML
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            // Apply syntax highlighting
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[\[\]{}(),:])/g, function (match) {
+                let className = '';
+                
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        className = 'json-key'; // Property keys
+                    } else {
+                        className = 'json-string'; // String values
+                    }
+                } else if (/true|false/.test(match)) {
+                    className = 'json-boolean'; // Boolean values
+                } else if (/null/.test(match)) {
+                    className = 'json-null'; // Null values
+                } else if (/^-?\d/.test(match)) {
+                    className = 'json-number'; // Numeric values
+                } else {
+                    className = 'json-punctuation'; // Brackets, braces, commas, colons
+                }
+                
+                return `<span class="${className}">${match}</span>`;
+            });
+        };
+
         // App Logic
         let processedSchema = '';
         let uploadedFileName = '';
@@ -749,14 +748,10 @@
         const refConfigInput = document.getElementById('refConfigInput');
         const refConfigInfo = document.getElementById('refConfigInfo');
         const processBtn = document.getElementById('processBtn');
-        const outputArea = document.getElementById('outputArea');
         const outputDisplay = document.getElementById('outputDisplay');
         const downloadBtn = document.getElementById('downloadBtn');
-        const toggleDisplay = document.getElementById('toggleDisplay');
         const errorMessage = document.getElementById('errorMessage');
         const successMessage = document.getElementById('successMessage');
-
-        let isStyledView = false;
 
         const hideMessages = () => {
             errorMessage.style.display = 'none';
@@ -858,19 +853,15 @@
                     
                     processedSchema = serializeToJson(schema);
                     
-                    // Display result
-                    outputArea.value = processedSchema;
+                    // Display result with syntax highlighting
                     outputDisplay.innerHTML = syntaxHighlight(processedSchema);
                     downloadBtn.style.display = 'inline-block';
-                    toggleDisplay.style.display = 'inline-block';
                     
                     showSuccess(`Schema generated successfully!${refConfigData ? ' Ref-config applied.' : ''}`);
                 } catch (error) {
                     showError(`Error processing file: ${error.message}`);
-                    outputArea.value = '';
-                    outputDisplay.innerHTML = '';
+                    outputDisplay.innerHTML = '<span class="placeholder">Error occurred during processing</span>';
                     downloadBtn.style.display = 'none';
-                    toggleDisplay.style.display = 'none';
                 } finally {
                     processBtn.classList.remove('processing');
                     processBtn.textContent = '🚀 Process Schema';
@@ -906,39 +897,6 @@
             
             showSuccess('Schema downloaded successfully!');
         });
-
-        // Enhanced syntax highlighting for the output
-        const syntaxHighlight = (json) => {
-            if (typeof json !== 'string') {
-                json = JSON.stringify(json, null, 2);
-            }
-            
-            // Escape HTML
-            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            
-            // Apply syntax highlighting
-            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[\[\]{}(),:])/g, function (match) {
-                let className = '';
-                
-                if (/^"/.test(match)) {
-                    if (/:$/.test(match)) {
-                        className = 'json-key'; // Property keys
-                    } else {
-                        className = 'json-string'; // String values
-                    }
-                } else if (/true|false/.test(match)) {
-                    className = 'json-boolean'; // Boolean values
-                } else if (/null/.test(match)) {
-                    className = 'json-null'; // Null values
-                } else if (/^-?\d/.test(match)) {
-                    className = 'json-number'; // Numeric values
-                } else {
-                    className = 'json-punctuation'; // Brackets, braces, commas, colons
-                }
-                
-                return `<span class="${className}">${match}</span>`;
-            });
-        };
     </script>
 </body>
 </html>
