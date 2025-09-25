@@ -258,6 +258,20 @@
             </div>
 
             <div class="ref-config-section">
+                <h3 class="ref-config-title">Existing Schema (Optional)</h3>
+                <p class="ref-config-description">
+                    If API already exists, upload the current schema.json. If API is being created for the first time, uploading schema.json is optional.
+                </p>
+                <div class="upload-area">
+                    <label for="existingSchemaInput" class="file-label" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">
+                        📋 Choose Existing Schema
+                    </label>
+                    <input type="file" id="existingSchemaInput" class="file-input" accept=".json">
+                    <div class="file-info" id="existingSchemaInfo">No existing schema selected</div>
+                </div>
+            </div>
+
+            <div class="ref-config-section">
                 <h3 class="ref-config-title">Reference Configuration (Optional)</h3>
                 <p class="ref-config-description">
                     Upload a JSON file to override reference mappings. This will replace "@@@ TO BE FILLED MANUALLY @@@" placeholders with your specified references.

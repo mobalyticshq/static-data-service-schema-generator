@@ -457,13 +457,81 @@ const syntaxHighlight = (json) => {
     });
 };
 
+// Function to merge existing schema with new schema
+const mergeWithExistingSchema = (newSchema, existingSchema) => {
+    if (!existingSchema || !existingSchema.groups) {
+        return newSchema;
+    }
+
+    const result = JSON.parse(JSON.stringify(newSchema));
+    
+    // Merge groups from existing schema
+    Object.keys(existingSchema.groups).forEach(groupName => {
+        if (result.groups[groupName]) {
+            // Group exists in both schemas - merge fields and objects
+            const existingGroup = existingSchema.groups[groupName];
+            const newGroup = result.groups[groupName];
+            
+            // Preserve existing fields
+            if (existingGroup.fields) {
+                Object.keys(existingGroup.fields).forEach(fieldName => {
+                    if (newGroup.fields[fieldName]) {
+                        // Field exists in both - preserve existing configuration
+                        newGroup.fields[fieldName] = existingGroup.fields[fieldName];
+                    } else {
+                        // Field only exists in existing schema - add it
+                        newGroup.fields[fieldName] = existingGroup.fields[fieldName];
+                    }
+                });
+            }
+            
+            // Preserve existing objects
+            if (existingGroup.objects) {
+                if (!newGroup.objects) {
+                    newGroup.objects = {};
+                }
+                Object.keys(existingGroup.objects).forEach(objName => {
+                    if (newGroup.objects[objName]) {
+                        // Object exists in both - merge fields
+                        const existingObj = existingGroup.objects[objName];
+                        const newObj = newGroup.objects[objName];
+                        
+                        if (existingObj.fields) {
+                            Object.keys(existingObj.fields).forEach(fieldName => {
+                                if (newObj.fields[fieldName]) {
+                                    // Field exists in both - preserve existing configuration
+                                    newObj.fields[fieldName] = existingObj.fields[fieldName];
+                                } else {
+                                    // Field only exists in existing schema - add it
+                                    newObj.fields[fieldName] = existingObj.fields[fieldName];
+                                }
+                            });
+                        }
+                    } else {
+                        // Object only exists in existing schema - add it
+                        newGroup.objects[objName] = existingGroup.objects[objName];
+                    }
+                });
+            }
+        } else {
+            // Group only exists in existing schema - add it completely
+            result.groups[groupName] = existingSchema.groups[groupName];
+        }
+    });
+    
+    return result;
+};
+
 // App Logic
 let processedSchema = '';
 let uploadedFileName = '';
 let refConfigData = null;
+let existingSchemaData = null;
 
 const fileInput = document.getElementById('fileInput');
 const fileInfo = document.getElementById('fileInfo');
+const existingSchemaInput = document.getElementById('existingSchemaInput');
+const existingSchemaInfo = document.getElementById('existingSchemaInfo');
 const refConfigInput = document.getElementById('refConfigInput');
 const refConfigInfo = document.getElementById('refConfigInfo');
 const processBtn = document.getElementById('processBtn');
@@ -507,6 +575,41 @@ fileInput.addEventListener('change', (e) => {
         fileInfo.textContent = 'No file selected';
         processBtn.disabled = true;
         hideMessages();
+    }
+});
+
+existingSchemaInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+            showError('Please select a valid JSON file for existing schema');
+            existingSchemaInfo.textContent = 'No existing schema selected';
+            existingSchemaData = null;
+            return;
+        }
+        
+        existingSchemaInfo.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+        hideMessages();
+
+        // Load existing schema file
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                existingSchemaData = JSON.parse(e.target.result);
+                if (!existingSchemaData.groups || typeof existingSchemaData.groups !== 'object') {
+                    throw new Error('Existing schema must contain "groups" object');
+                }
+                showSuccess('Existing schema loaded successfully!');
+            } catch (error) {
+                showError(`Error loading existing schema: ${error.message}`);
+                existingSchemaData = null;
+                existingSchemaInfo.textContent = 'No existing schema selected';
+            }
+        };
+        reader.readAsText(file);
+    } else {
+        existingSchemaInfo.textContent = 'No existing schema selected';
+        existingSchemaData = null;
     }
 });
 
@@ -558,35 +661,43 @@ processBtn.addEventListener('click', () => {
     hideMessages();
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const jsonData = JSON.parse(e.target.result);
-            
-            // Generate schema
-            let schema = generateSchemaFromData(jsonData);
-            
-            // Apply ref-config if available
-            if (refConfigData) {
-                schema = applyRefConfig(schema, refConfigData);
-            }
-            
-            processedSchema = serializeToJson(schema);
-            
-            // Display result with syntax highlighting
-            outputDisplay.innerHTML = syntaxHighlight(processedSchema);
-            downloadBtn.style.display = 'inline-block';
-            
-            showSuccess(`Schema generated successfully!${refConfigData ? ' Ref-config applied.' : ''}`);
-        } catch (error) {
-            showError(`Error processing file: ${error.message}`);
-            outputDisplay.innerHTML = '<span class="placeholder">Error occurred during processing</span>';
-            downloadBtn.style.display = 'none';
-        } finally {
-            processBtn.classList.remove('processing');
-            processBtn.textContent = '🚀 Process Schema';
-            processBtn.disabled = false;
-        }
-    };
+            reader.onload = (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    
+                    // Generate schema
+                    let schema = generateSchemaFromData(jsonData);
+                    
+                    // Merge with existing schema if available
+                    if (existingSchemaData) {
+                        schema = mergeWithExistingSchema(schema, existingSchemaData);
+                    }
+                    
+                    // Apply ref-config if available
+                    if (refConfigData) {
+                        schema = applyRefConfig(schema, refConfigData);
+                    }
+                    
+                    processedSchema = serializeToJson(schema);
+                    
+                    // Display result with syntax highlighting
+                    outputDisplay.innerHTML = syntaxHighlight(processedSchema);
+                    downloadBtn.style.display = 'inline-block';
+                    
+                    let successMessage = 'Schema generated successfully!';
+                    if (existingSchemaData) successMessage += ' Existing schema merged.';
+                    if (refConfigData) successMessage += ' Ref-config applied.';
+                    showSuccess(successMessage);
+                } catch (error) {
+                    showError(`Error processing file: ${error.message}`);
+                    outputDisplay.innerHTML = '<span class="placeholder">Error occurred during processing</span>';
+                    downloadBtn.style.display = 'none';
+                } finally {
+                    processBtn.classList.remove('processing');
+                    processBtn.textContent = '🚀 Process Schema';
+                    processBtn.disabled = false;
+                }
+            };
 
     reader.onerror = () => {
         showError('Error reading file');
