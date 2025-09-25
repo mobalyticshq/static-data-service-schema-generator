@@ -465,6 +465,14 @@ const mergeWithExistingSchema = (newSchema, existingSchema) => {
 
     const result = JSON.parse(JSON.stringify(newSchema));
     
+    // Use namespace and typePrefix from existing schema if available
+    if (existingSchema.namespace && existingSchema.namespace !== MANUAL_FILL_PLACEHOLDER) {
+        result.namespace = existingSchema.namespace;
+    }
+    if (existingSchema.typePrefix && existingSchema.typePrefix !== MANUAL_FILL_PLACEHOLDER) {
+        result.typePrefix = existingSchema.typePrefix;
+    }
+    
     // Merge groups from existing schema
     Object.keys(existingSchema.groups).forEach(groupName => {
         if (result.groups[groupName]) {
